@@ -1,48 +1,84 @@
+require('dotenv').config()
 const express = require('express')
+const mongoose = require('mongoose')
+const Task = require('./models/Task')
 
 const app = express()
-const PORT = 3000
+const PORT = process.env.PORT || 3000
 
 app.use(express.json())
 
-let tasks = [
-  { id: 1, title: 'Study React', completed: true },
-  { id: 2, title: 'Build a task manager', completed: false },
-  { id: 3, title: 'Push to GitHub', completed: false },
-]
+// Connect to MongoDB
+mongoose
+  .connect(process.env.MONGO_URI)
+  .then(() => console.log('Connected to MongoDB'))
+  .catch((err) => console.error('MongoDB connection error:', err))
 
+// Root route
 app.get('/', (req, res) => {
   res.send('Hello from the backend!')
 })
 
-app.get('/tasks', (req, res) => {
-  res.json(tasks)
-})
-
-// TEST ROUTE: add a task
-app.get('/test-add', (req, res) => {
-  const newTask = {
-    id: Date.now(),
-    title: 'Test task',
-    completed: false,
+// GET all tasks
+app.get('/tasks', async (req, res) => {
+  try {
+    const tasks = await Task.find().sort({ createdAt: -1 })
+    res.json(tasks)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch tasks' })
   }
-  tasks.push(newTask)
-  res.json(newTask)
 })
 
-// TEST ROUTE: delete the last task
-app.get('/test-delete', (req, res) => {
-  const removed = tasks.pop()
-  res.json({ removed: removed, remaining: tasks.length })
-})
+// POST a new task
+app.post('/tasks', async (req, res) => {
+  try {
+    const { title } = req.body
 
-// TEST ROUTE: toggle the first task complete
-app.get('/test-complete', (req, res) => {
-  if (tasks.length === 0) {
-    return res.json({ message: 'No tasks' })
+    if (!title || title.trim() === '') {
+      return res.status(400).json({ error: 'Title is required' })
+    }
+
+    const newTask = await Task.create({ title: title.trim() })
+    res.status(201).json(newTask)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create task' })
   }
-  tasks[0].completed = !tasks[0].completed
-  res.json(tasks[0])
+})
+
+// PUT — update a task (title or completed)
+app.put('/tasks/:id', async (req, res) => {
+  try {
+    const { title, completed } = req.body
+
+    const updatedTask = await Task.findByIdAndUpdate(
+      req.params.id,
+      { title, completed },
+      { new: true }
+    )
+
+    if (!updatedTask) {
+      return res.status(404).json({ error: 'Task not found' })
+    }
+
+    res.json(updatedTask)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update task' })
+  }
+})
+
+// DELETE a task
+app.delete('/tasks/:id', async (req, res) => {
+  try {
+    const deletedTask = await Task.findByIdAndDelete(req.params.id)
+
+    if (!deletedTask) {
+      return res.status(404).json({ error: 'Task not found' })
+    }
+
+    res.json({ message: 'Task deleted', task: deletedTask })
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete task' })
+  }
 })
 
 app.listen(PORT, () => {
