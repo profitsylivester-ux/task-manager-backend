@@ -34,27 +34,36 @@ app.get('/tasks', async (req, res) => {
 // POST a new task
 app.post('/tasks', async (req, res) => {
   try {
-    const { title } = req.body
+    const { title, dueDate } = req.body
 
     if (!title || title.trim() === '') {
       return res.status(400).json({ error: 'Title is required' })
     }
 
-    const newTask = await Task.create({ title: title.trim() })
+    const newTask = await Task.create({
+      title: title.trim(),
+      dueDate: dueDate || null,
+    })
+
     res.status(201).json(newTask)
   } catch (error) {
     res.status(500).json({ error: 'Failed to create task' })
   }
 })
 
-// PUT — update a task (title or completed)
+// PUT — update a task (title, completed, or dueDate)
 app.put('/tasks/:id', async (req, res) => {
   try {
-    const { title, completed } = req.body
+    const { title, completed, dueDate } = req.body
+
+    const updates = {}
+    if (title !== undefined) updates.title = title
+    if (completed !== undefined) updates.completed = completed
+    if (dueDate !== undefined) updates.dueDate = dueDate
 
     const updatedTask = await Task.findByIdAndUpdate(
       req.params.id,
-      { title, completed },
+      updates,
       { new: true }
     )
 
