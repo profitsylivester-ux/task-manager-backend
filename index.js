@@ -4,6 +4,8 @@ const mongoose = require('mongoose')
 const cors = require('cors')
 const Task = require('./models/Task')
 const Note = require('./models/Note')
+const authRoutes = require('./routes/auth')
+const authMiddleware = require('./middleware/auth')
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -22,12 +24,15 @@ app.get('/', (req, res) => {
   res.send('Hello from the backend!')
 })
 
-/* ===== TASK ROUTES ===== */
+// Auth routes
+app.use('/auth', authRoutes)
 
-// GET all tasks
-app.get('/tasks', async (req, res) => {
+/* ===== TASK ROUTES (protected) ===== */
+
+// GET all tasks for the logged-in user
+app.get('/tasks', authMiddleware, async (req, res) => {
   try {
-    const tasks = await Task.find().sort({ createdAt: -1 })
+    const tasks = await Task.find({ user: req.userId }).sort({ createdAt: -1 })
     res.json(tasks)
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch tasks' })
@@ -35,7 +40,7 @@ app.get('/tasks', async (req, res) => {
 })
 
 // POST a new task
-app.post('/tasks', async (req, res) => {
+app.post('/tasks', authMiddleware, async (req, res) => {
   try {
     const { title, dueDate } = req.body
 
@@ -44,6 +49,7 @@ app.post('/tasks', async (req, res) => {
     }
 
     const newTask = await Task.create({
+      user: req.userId,
       title: title.trim(),
       dueDate: dueDate || null,
     })
@@ -55,7 +61,7 @@ app.post('/tasks', async (req, res) => {
 })
 
 // PUT — update a task
-app.put('/tasks/:id', async (req, res) => {
+app.put('/tasks/:id', authMiddleware, async (req, res) => {
   try {
     const { title, completed, dueDate } = req.body
 
@@ -64,8 +70,8 @@ app.put('/tasks/:id', async (req, res) => {
     if (completed !== undefined) updates.completed = completed
     if (dueDate !== undefined) updates.dueDate = dueDate
 
-    const updatedTask = await Task.findByIdAndUpdate(
-      req.params.id,
+    const updatedTask = await Task.findOneAndUpdate(
+      { _id: req.params.id, user: req.userId },
       updates,
       { new: true }
     )
@@ -81,9 +87,12 @@ app.put('/tasks/:id', async (req, res) => {
 })
 
 // DELETE a task
-app.delete('/tasks/:id', async (req, res) => {
+app.delete('/tasks/:id', authMiddleware, async (req, res) => {
   try {
-    const deletedTask = await Task.findByIdAndDelete(req.params.id)
+    const deletedTask = await Task.findOneAndDelete({
+      _id: req.params.id,
+      user: req.userId,
+    })
 
     if (!deletedTask) {
       return res.status(404).json({ error: 'Task not found' })
@@ -95,20 +104,18 @@ app.delete('/tasks/:id', async (req, res) => {
   }
 })
 
-/* ===== NOTE ROUTES ===== */
+/* ===== NOTE ROUTES (protected) ===== */
 
-// GET all notes
-app.get('/notes', async (req, res) => {
+app.get('/notes', authMiddleware, async (req, res) => {
   try {
-    const notes = await Note.find().sort({ createdAt: -1 })
+    const notes = await Note.find({ user: req.userId }).sort({ createdAt: -1 })
     res.json(notes)
   } catch (error) {
     res.status(500).json({ error: 'Failed to fetch notes' })
   }
 })
 
-// POST a new note
-app.post('/notes', async (req, res) => {
+app.post('/notes', authMiddleware, async (req, res) => {
   try {
     const { title, body } = req.body
 
@@ -117,6 +124,7 @@ app.post('/notes', async (req, res) => {
     }
 
     const newNote = await Note.create({
+      user: req.userId,
       title: title?.trim() || 'Untitled',
       body: body?.trim() || '',
     })
@@ -127,8 +135,7 @@ app.post('/notes', async (req, res) => {
   }
 })
 
-// PUT — update a note
-app.put('/notes/:id', async (req, res) => {
+app.put('/notes/:id', authMiddleware, async (req, res) => {
   try {
     const { title, body } = req.body
 
@@ -136,8 +143,8 @@ app.put('/notes/:id', async (req, res) => {
     if (title !== undefined) updates.title = title
     if (body !== undefined) updates.body = body
 
-    const updatedNote = await Note.findByIdAndUpdate(
-      req.params.id,
+    const updatedNote = await Note.findOneAndUpdate(
+      { _id: req.params.id, user: req.userId },
       updates,
       { new: true }
     )
@@ -152,10 +159,12 @@ app.put('/notes/:id', async (req, res) => {
   }
 })
 
-// DELETE a note
-app.delete('/notes/:id', async (req, res) => {
+app.delete('/notes/:id', authMiddleware, async (req, res) => {
   try {
-    const deletedNote = await Note.findByIdAndDelete(req.params.id)
+    const deletedNote = await Note.findOneAndDelete({
+      _id: req.params.id,
+      user: req.userId,
+    })
 
     if (!deletedNote) {
       return res.status(404).json({ error: 'Note not found' })
