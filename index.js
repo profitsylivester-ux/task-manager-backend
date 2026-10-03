@@ -3,6 +3,7 @@ const express = require('express')
 const mongoose = require('mongoose')
 const cors = require('cors')
 const Task = require('./models/Task')
+const Note = require('./models/Note')
 
 const app = express()
 const PORT = process.env.PORT || 3000
@@ -20,6 +21,8 @@ mongoose
 app.get('/', (req, res) => {
   res.send('Hello from the backend!')
 })
+
+/* ===== TASK ROUTES ===== */
 
 // GET all tasks
 app.get('/tasks', async (req, res) => {
@@ -51,7 +54,7 @@ app.post('/tasks', async (req, res) => {
   }
 })
 
-// PUT — update a task (title, completed, or dueDate)
+// PUT — update a task
 app.put('/tasks/:id', async (req, res) => {
   try {
     const { title, completed, dueDate } = req.body
@@ -89,6 +92,78 @@ app.delete('/tasks/:id', async (req, res) => {
     res.json({ message: 'Task deleted', task: deletedTask })
   } catch (error) {
     res.status(500).json({ error: 'Failed to delete task' })
+  }
+})
+
+/* ===== NOTE ROUTES ===== */
+
+// GET all notes
+app.get('/notes', async (req, res) => {
+  try {
+    const notes = await Note.find().sort({ createdAt: -1 })
+    res.json(notes)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to fetch notes' })
+  }
+})
+
+// POST a new note
+app.post('/notes', async (req, res) => {
+  try {
+    const { title, body } = req.body
+
+    if ((!title || title.trim() === '') && (!body || body.trim() === '')) {
+      return res.status(400).json({ error: 'Note cannot be empty' })
+    }
+
+    const newNote = await Note.create({
+      title: title?.trim() || 'Untitled',
+      body: body?.trim() || '',
+    })
+
+    res.status(201).json(newNote)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to create note' })
+  }
+})
+
+// PUT — update a note
+app.put('/notes/:id', async (req, res) => {
+  try {
+    const { title, body } = req.body
+
+    const updates = {}
+    if (title !== undefined) updates.title = title
+    if (body !== undefined) updates.body = body
+
+    const updatedNote = await Note.findByIdAndUpdate(
+      req.params.id,
+      updates,
+      { new: true }
+    )
+
+    if (!updatedNote) {
+      return res.status(404).json({ error: 'Note not found' })
+    }
+
+    res.json(updatedNote)
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to update note' })
+  }
+})
+
+// DELETE a note
+app.delete('/notes/:id', async (req, res) => {
+  try {
+    const deletedNote = await Note.findByIdAndDelete(req.params.id)
+
+    if (!deletedNote) {
+      return res.status(404).json({ error: 'Note not found' })
+    }
+
+    res.json({ message: 'Note deleted', note: deletedNote })
+  } catch (error) {
+    res.status(500).json({ error: 'Failed to delete note' })
   }
 })
 
